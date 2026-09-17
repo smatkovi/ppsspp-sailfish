@@ -1,3 +1,7 @@
+
+# Sailfish OS Mock Module Path
+list(APPEND CMAKE_MODULE_PATH "/home/mersdk/ppsspp/build_dummy_include")
+
 # vim:noexpandtab:
 cmake_minimum_required(VERSION 3.16)
 project(PPSSPP)
@@ -166,6 +170,7 @@ option(USE_VULKAN_DISPLAY_KHR "Enable or disable full screen display of Vulkan" 
 # :: Frontends
 option(USING_QT_UI "Set to ON if you wish to use the Qt frontend wrapper" ${USING_QT_UI})
 option(MOBILE_DEVICE "Set to ON when targeting a mobile device" ${MOBILE_DEVICE})
+option(SAILFISH "Sailfish OS: tilt input and auto-rotation through QtSensors" OFF)
 option(HEADLESS "Set to OFF to not generate the PPSSPPHeadless target" ${HEADLESS})
 option(UNITTEST "Set to ON to generate the unittest target" ${UNITTEST})
 option(SIMULATOR "Set to ON when targeting an x86 simulator of an ARM platform" ${SIMULATOR})
@@ -1430,6 +1435,18 @@ else()
 		SDL/SDLMain.cpp
 		SDL/SDLGLGraphicsContext.cpp
 	)
+	if(SAILFISH)
+		# SDL2 on Sailfish has neither sensors nor a window that turns with
+		# the device; QtSensors (sensorfw) provides both, see SDL/SailfishSensors.cpp.
+		find_package(PkgConfig REQUIRED)
+		pkg_check_modules(SFOS_QT REQUIRED IMPORTED_TARGET Qt5Core Qt5Sensors)
+		add_definitions(-DSAILFISH)
+		set(nativeExtra ${nativeExtra}
+			SDL/SailfishSensors.h
+			SDL/SailfishSensors.cpp
+		)
+		set(nativeExtraLibs ${nativeExtraLibs} PkgConfig::SFOS_QT)
+	endif()
 	if(NOT USE_LIBNX)
 		set(nativeExtra ${nativeExtra}
 			SDL/SDLVulkanGraphicsContext.cpp

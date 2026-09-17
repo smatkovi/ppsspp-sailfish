@@ -317,6 +317,14 @@ public:
 	// Type of tilt input currently selected: Defined in TiltEventProcessor.h
 	// 0 - no tilt, 1 - analog stick, 2 - D-Pad, 3 - Action Buttons (Tri, Cross, Square, Circle)
 	int iTiltInputType;
+	// Need for Speed Shift (MeeGo) steering model instead of PPSSPP's own tilt
+	// mapping: tilt angle in degrees, smoothed, 30 degrees = full lock. See
+	// Core/TiltEventProcessor.cpp.
+	bool bTiltNfsShift;
+	float fTiltNfsSensitivity;   // the game's option: 0.79 .. 1.25, shipped 1.0
+	// Sailfish auto-rotation: swap which way round the device maps to the two
+	// vertical rotations.
+	bool bTiltAutoRotateSwap;
 
 	// The three tabs.
 	bool bGridView1;

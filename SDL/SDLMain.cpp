@@ -15,6 +15,9 @@
 #include "SDL_syswm.h"
 #endif
 #include "SDL/SDLJoystick.h"
+#if defined(SAILFISH)
+#include "SDL/SailfishSensors.h"
+#endif
 SDLJoystick *joystick = NULL;
 
 #if PPSSPP_PLATFORM(RPI)
@@ -606,7 +609,7 @@ bool System_GetPropertyBool(SystemProperty prop) {
 		return true;
 #endif
 	case SYSPROP_HAS_ACCELEROMETER:
-#if defined(MOBILE_DEVICE)
+#if defined(MOBILE_DEVICE) || defined(SAILFISH)
 		return true;
 #else
 		return false;
@@ -1234,6 +1237,10 @@ int main(int argc, char *argv[]) {
 			return 1;
 		}
 	}
+#if defined(SAILFISH)
+	// Accelerometer and orientation from sensorfw; polled from the main loop.
+	SailfishSensors::Init();
+#endif
 
 	SDL_VERSION(&compiled);
 	SDL_GetVersion(&linked);
@@ -1496,6 +1503,9 @@ int main(int argc, char *argv[]) {
 			while (SDL_WaitEventTimeout(&event, 100)) {
 				ProcessSDLEvent(window, event, &inputTracker);
 			}
+#if defined(SAILFISH)
+			SailfishSensors::Poll();
+#endif
 			if (g_QuitRequested || g_RestartRequested)
 				break;
 
@@ -1518,6 +1528,9 @@ int main(int argc, char *argv[]) {
 				ProcessSDLEvent(window, event, &inputTracker);
 			}
 		}
+#if defined(SAILFISH)
+		SailfishSensors::Poll();
+#endif
 		if (g_QuitRequested || g_RestartRequested)
 			break;
 		if (emuThreadState == (int)EmuThreadState::DISABLED) {

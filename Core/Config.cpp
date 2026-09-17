@@ -803,7 +803,7 @@ static const ConfigSetting controlSettings[] = {
 
 	// ConfigSetting("KeyMapping", &g_Config.iMappingMap, 0),
 
-#ifdef MOBILE_DEVICE
+#if defined(MOBILE_DEVICE) || defined(SAILFISH)
 	ConfigSetting("TiltBaseAngleY", &g_Config.fTiltBaseAngleY, 0.9f, CfgFlag::PER_GAME),
 	ConfigSetting("TiltInvertX", &g_Config.bInvertTiltX, false, CfgFlag::PER_GAME),
 	ConfigSetting("TiltInvertY", &g_Config.bInvertTiltY, false, CfgFlag::PER_GAME),
@@ -813,6 +813,9 @@ static const ConfigSetting controlSettings[] = {
 	ConfigSetting("TiltInverseDeadzone", &g_Config.fTiltInverseDeadzone, 0.0f, CfgFlag::PER_GAME),
 	ConfigSetting("TiltCircularDeadzone", &g_Config.bTiltCircularDeadzone, true, CfgFlag::PER_GAME),
 	ConfigSetting("TiltInputType", &g_Config.iTiltInputType, 0, CfgFlag::PER_GAME),
+	ConfigSetting("TiltNfsShift", &g_Config.bTiltNfsShift, false, CfgFlag::PER_GAME),
+	ConfigSetting("TiltNfsSensitivity", &g_Config.fTiltNfsSensitivity, 1.0f, CfgFlag::PER_GAME),
+	ConfigSetting("TiltAutoRotateSwap", &g_Config.bTiltAutoRotateSwap, false, CfgFlag::PER_GAME),
 #endif
 
 	ConfigSetting("DisableDpadDiagonals", &g_Config.bDisableDpadDiagonals, false, CfgFlag::PER_GAME),

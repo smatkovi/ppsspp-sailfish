@@ -9,6 +9,7 @@
 #include "Common/Math/lin/matrix4x4.h"
 #include "Common/Log.h"
 #include "Common/System/Display.h"
+#include "Common/TimeUtil.h"
 
 #include "Core/Config.h"
 #include "Core/ConfigValues.h"
@@ -111,9 +112,92 @@ inline void ApplyInverseDeadzone(float x, float y, float *outX, float *outY, flo
 	}
 }
 
+
+// --- Need for Speed Shift steering model --------------------------------------
+// The MeeGo build of NFS Shift (NFSShift.s3e 1.0.20) turns tilt into steering
+// like this -- read from the game's ARM code (TiltSteer at 0x4a1151b4 and the
+// accelerometer object's GetAngle at 0x4a0d13a0):
+//   1. g = sqrt(x^2 + y^2 + z^2); below 0.15 g the sample is invalid and the
+//      target angle is 0.
+//   2. angle_deg = acos(h / g) * 180 / pi - 90, h being the gravity component
+//      along the horizontal axis of the landscape picture. (acos - 90 equals
+//      -asin: 0 with the phone level, +-90 on its side.)
+//   3. target = angle_deg * sensitivity. The game's option ranges 0.79..1.25,
+//      the shipped and saved value is 1.0.
+//   4. Frame-rate independent smoothing toward the target:
+//        steer += (target - steer) * (1 - 0.0001 ^ (dt_ms / 1024))
+//      The game keeps dt in milliseconds and converts it through 16.16 fixed
+//      point, hence 1024 rather than 1000.
+//   5. Output = clamp(steer / 30, -1, 1): 30 degrees of smoothed tilt is full
+//      lock, there is no dead zone; |steer| >= 90 counts as no input at all.
+// The game also has a pre-filter on the raw vector, but it ships with a
+// coefficient of 1.0, i.e. switched off. Nothing else touches the value before
+// it reaches the car.
+static float g_nfsSteer = 0.0f;
+static double g_nfsLastTime = 0.0;
+static bool g_nfsHaveTime = false;
+
+static void ProcessTiltNfsShift(bool landscape, float x, float y, float z, bool invertX) {
+	// Horizontal axis of the displayed picture, in the device's portrait
+	// frame (x right, y up, z out of the screen). A landscape window puts it
+	// on device y; PPSSPP's internal rotation on a portrait window does the
+	// same, turned by another 90 degrees each step.
+	int rot = landscape ? 90 : 0;
+	switch (g_Config.iInternalScreenRotation) {
+	case ROTATION_LOCKED_VERTICAL: rot += 90; break;
+	case ROTATION_LOCKED_HORIZONTAL180: rot += 180; break;
+	case ROTATION_LOCKED_VERTICAL180: rot += 270; break;
+	default: break;
+	}
+	float h;
+	switch (rot % 360) {
+	case 90: h = y; break;
+	case 180: h = x; break;
+	case 270: h = -y; break;
+	default: h = -x; break;  // PPSSPP's own convention for an upright phone
+	}
+
+	float g = sqrtf(x * x + y * y + z * z);
+	float target = 0.0f;
+	if (g > 0.15f) {
+		float c = h / g;
+		if (c > 1.0f) c = 1.0f;
+		if (c < -1.0f) c = -1.0f;
+		float angle = acosf(c) * (180.0f / (float)M_PI) - 90.0f;
+		target = angle * g_Config.fTiltNfsSensitivity;
+	}
+
+	double now = time_now_d();
+	if (!g_nfsHaveTime) {
+		g_nfsSteer = target;
+		g_nfsHaveTime = true;
+	} else {
+		float dtMs = (float)((now - g_nfsLastTime) * 1000.0);
+		if (dtMs < 0.0f) dtMs = 0.0f;
+		float k = 1.0f - powf(0.0001f, dtMs / 1024.0f);
+		g_nfsSteer += (target - g_nfsSteer) * k;
+	}
+	g_nfsLastTime = now;
+
+	float out = 0.0f;
+	if (fabsf(g_nfsSteer) < 90.0f) {
+		out = g_nfsSteer / 30.0f;
+		if (out > 1.0f) out = 1.0f;
+		if (out < -1.0f) out = -1.0f;
+	}
+	if (invertX) out = -out;
+	rawTiltAnalogX = out;
+	rawTiltAnalogY = 0.0f;
+	GenerateAnalogStickEvent(out, 0.0f);
+}
+
 void ProcessTilt(bool landscape, float calibrationAngle, float x, float y, float z, bool invertX, bool invertY, float xSensitivity, float ySensitivity) {
 	if (g_Config.iTiltInputType == TILT_NULL) {
 		// Turned off - nothing to do.
+		return;
+	}
+	if (g_Config.iTiltInputType == TILT_ANALOG && g_Config.bTiltNfsShift) {
+		ProcessTiltNfsShift(landscape, x, y, z, invertX);
 		return;
 	}
 
@@ -304,6 +388,8 @@ void ResetTiltEvents() {
 	// Reset the buttons we have marked pressed.
 	__CtrlUpdateButtons(0, tiltButtonsDown);
 	tiltButtonsDown = 0;
+	g_nfsSteer = 0.0f;
+	g_nfsHaveTime = false;
 	__CtrlSetAnalogXY(CTRL_STICK_LEFT, 0.0f, 0.0f);
 }
 
