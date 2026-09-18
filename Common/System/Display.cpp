@@ -35,7 +35,7 @@ void RotateRectToDisplayImpl(DisplayRect<T> &rect, T curRTWidth, T curRTHeight) 
 		T origY = rect.y;
 		T rtw = curRTHeight;
 		rect.x = origY;
-		rect.y = clamp_value(rtw - rect.w - origX, T{}, curRTWidth);
+		rect.y = clamp_value(rtw - rect.w - origX, T{}, curRTHeight);
 		T temp = rect.w;
 		rect.w = rect.h;
 		rect.h = temp;

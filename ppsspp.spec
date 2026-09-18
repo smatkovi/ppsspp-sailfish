@@ -1,7 +1,7 @@
 Name:       ppsspp
 Summary:    PPSSPP PSP Emulator for Sailfish OS
 Version:    1.19.0
-Release:    5
+Release:    7
 Group:      Applications/Games
 License:    GPLv2+
 URL:        https://www.ppsspp.org/

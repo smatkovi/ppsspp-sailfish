@@ -46,8 +46,11 @@ void FramebufferManagerGLES::UpdateDownloadTempBuffer(VirtualFramebuffer *nvfb) 
 void FramebufferManagerGLES::NotifyDisplayResized() {
 	FramebufferManagerCommon::NotifyDisplayResized();
 
-	GLRenderManager *render = (GLRenderManager *)draw_->GetNativeObject(Draw::NativeObject::RENDER_MANAGER);
-	render->Resize(PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
+	// Callers hand over the logical size; OpenGLContext::SetTargetSize knows
+	// that the default framebuffer is physically the other way round when the
+	// display is pre-rotated. Going straight to the render manager here used
+	// to skip that swap and squash the picture after every resize.
+	draw_->SetTargetSize(PSP_CoreParameter().pixelWidth, PSP_CoreParameter().pixelHeight);
 }
 
 bool FramebufferManagerGLES::GetOutputFramebuffer(GPUDebugBuffer &buffer) {

@@ -204,17 +204,28 @@ static void ApplySailfishScreen(int physW, int physH) {
 #endif
 
 static void UpdateScreenDPI(SDL_Window *window) {
-	int drawable_width, window_width;
-	SDL_GetWindowSize(window, &window_width, NULL);
+	int drawable_width = 0, drawable_height = 0, window_width = 0, window_height = 0;
+	SDL_GetWindowSize(window, &window_width, &window_height);
 
 	if (g_Config.iGPUBackend == (int)GPUBackend::OPENGL)
-		SDL_GL_GetDrawableSize(window, &drawable_width, NULL);
+		SDL_GL_GetDrawableSize(window, &drawable_width, &drawable_height);
 	else if (g_Config.iGPUBackend == (int)GPUBackend::VULKAN)
-		SDL_Vulkan_GetDrawableSize(window, &drawable_width, NULL);
+		SDL_Vulkan_GetDrawableSize(window, &drawable_width, &drawable_height);
 
+	// Compare the longer sides, not width with width: on Wayland (Sailfish)
+	// the window and the drawable are reported in different orientations for
+	// a moment after a configure (2272x1032 vs 1032x2272), and width/width
+	// then gives 0.45, which shrinks pixel_xres/yres to a corner of the buffer.
+	// For a window in one orientation this is the same ratio as before.
+	int drawable_long = drawable_width > drawable_height ? drawable_width : drawable_height;
+	int window_long = window_width > window_height ? window_width : window_height;
+	if (drawable_long <= 0 || window_long <= 0)
+		return;
 	// Round up a little otherwise there would be a gap sometimes
 	// in fractional scaling
-	g_DesktopDPI = ((float) drawable_width + 1.0f) / window_width;
+	g_DesktopDPI = ((float) drawable_long + 1.0f) / window_long;
+	if (getenv("PPSSPP_SENSOR_LOG"))
+		fprintf(stderr, "[sailfish] dpi: window %dx%d drawable %dx%d -> %.3f\n", window_width, window_height, drawable_width, drawable_height, g_DesktopDPI);
 
 	// Temporary hack
 #if PPSSPP_PLATFORM(MAC) || PPSSPP_PLATFORM(IOS)

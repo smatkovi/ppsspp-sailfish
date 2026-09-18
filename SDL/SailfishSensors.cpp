@@ -37,13 +37,24 @@ DisplayRotation RotationFor(int reading) {
 	return rightUp ? DisplayRotation::ROTATE_90 : DisplayRotation::ROTATE_270;
 }
 
+// The rotation matrices were written for Vulkan's clip space (y down). OpenGL's
+// clip space is y up, so the same matrix turns the picture the other way round
+// there -- 180 degrees away from where RotateRectToDisplay() puts the scissor
+// and viewport rects, which are written for Vulkan's direction. On GL the
+// opposite matrix lands the picture where the rects are.
+void SetRotMatrix(DisplayRotation want) {
+	bool gl = g_Config.iGPUBackend == (int)GPUBackend::OPENGL;
+	g_display.rot_matrix.setIdentity();
+	if (want == DisplayRotation::ROTATE_90) { if (gl) g_display.rot_matrix.setRotationZ270(); else g_display.rot_matrix.setRotationZ90(); }
+	else if (want == DisplayRotation::ROTATE_270) { if (gl) g_display.rot_matrix.setRotationZ90(); else g_display.rot_matrix.setRotationZ270(); }
+	else if (want == DisplayRotation::ROTATE_180) g_display.rot_matrix.setRotationZ180();
+}
+
 void SetRotation(DisplayRotation want) {
 	if (want == g_forcedDisplayRotation) return;
 	g_forcedDisplayRotation = want;
 	g_display.rotation = want;
-	g_display.rot_matrix.setIdentity();
-	if (want == DisplayRotation::ROTATE_90) g_display.rot_matrix.setRotationZ90();
-	else if (want == DisplayRotation::ROTATE_270) g_display.rot_matrix.setRotationZ270();
+	SetRotMatrix(want);
 	// Lipstick only needs to know for its edge gestures and the keyboard; the
 	// buffer itself is shown as drawn.
 	SDL_SetHint(SDL_HINT_QTWAYLAND_CONTENT_ORIENTATION, want == DisplayRotation::ROTATE_90 ? "landscape" : "inverted-landscape");
@@ -185,9 +196,7 @@ void PrepareWindow() {
 	}
 	g_forcedDisplayRotation = start;
 	g_display.rotation = start;
-	g_display.rot_matrix.setIdentity();
-	if (start == DisplayRotation::ROTATE_90) g_display.rot_matrix.setRotationZ90();
-	else g_display.rot_matrix.setRotationZ270();
+	SetRotMatrix(start);
 	SDL_SetHint(SDL_HINT_QTWAYLAND_CONTENT_ORIENTATION, start == DisplayRotation::ROTATE_90 ? "landscape" : "inverted-landscape");
 	// The whole picture is turned now; a game rotated on top of that would be
 	// turned twice.
