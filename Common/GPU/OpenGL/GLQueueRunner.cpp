@@ -6,6 +6,7 @@
 #include "Common/GPU/OpenGL/GLFeatures.h"
 #include "Common/GPU/OpenGL/DataFormatGL.h"
 #include "Common/Math/math_util.h"
+#include "Common/System/Display.h"
 #include "Common/VR/PPSSPPVR.h"
 
 #include "Common/Log.h"
@@ -984,17 +985,22 @@ void GLQueueRunner::PerformRenderPass(const GLRStep &step, bool first, bool last
 			break;
 		case GLRRenderCommand::VIEWPORT:
 		{
-			float y = c.viewport.vp.y;
+			// Rects come in logical (rotated) coordinates; only the backbuffer
+			// is physically the other way round, same as in thin3d_d3d11.
+			DisplayRect<float> rc{ c.viewport.vp.x, c.viewport.vp.y, c.viewport.vp.w, c.viewport.vp.h };
+			if (!curFB_ && g_display.rotation != DisplayRotation::ROTATE_0)
+				RotateRectToDisplay(rc, (float)curFBWidth_, (float)curFBHeight_);
+			float y = rc.y;
 			if (!curFB_)
-				y = curFBHeight_ - y - c.viewport.vp.h;
+				y = curFBHeight_ - y - rc.h;
 
 			// TODO: Support FP viewports through glViewportArrays
-			if (viewport.x != c.viewport.vp.x || viewport.y != y || viewport.w != c.viewport.vp.w || viewport.h != c.viewport.vp.h) {
-				glViewport((GLint)c.viewport.vp.x, (GLint)y, (GLsizei)c.viewport.vp.w, (GLsizei)c.viewport.vp.h);
-				viewport.x = c.viewport.vp.x;
+			if (viewport.x != rc.x || viewport.y != y || viewport.w != rc.w || viewport.h != rc.h) {
+				glViewport((GLint)rc.x, (GLint)y, (GLsizei)rc.w, (GLsizei)rc.h);
+				viewport.x = rc.x;
 				viewport.y = y;
-				viewport.w = c.viewport.vp.w;
-				viewport.h = c.viewport.vp.h;
+				viewport.w = rc.w;
+				viewport.h = rc.h;
 			}
 
 			if (viewport.minZ != c.viewport.vp.minZ || viewport.maxZ != c.viewport.vp.maxZ) {
@@ -1015,15 +1021,18 @@ void GLQueueRunner::PerformRenderPass(const GLRStep &step, bool first, bool last
 		}
 		case GLRRenderCommand::SCISSOR:
 		{
-			int y = c.scissor.rc.y;
+			DisplayRect<int> rc{ c.scissor.rc.x, c.scissor.rc.y, c.scissor.rc.w, c.scissor.rc.h };
+			if (!curFB_ && g_display.rotation != DisplayRotation::ROTATE_0)
+				RotateRectToDisplay(rc, curFBWidth_, curFBHeight_);
+			int y = rc.y;
 			if (!curFB_)
-				y = curFBHeight_ - y - c.scissor.rc.h;
-			if (scissorRc.x != c.scissor.rc.x || scissorRc.y != y || scissorRc.w != c.scissor.rc.w || scissorRc.h != c.scissor.rc.h) {
-				glScissor(c.scissor.rc.x, y, c.scissor.rc.w, c.scissor.rc.h);
-				scissorRc.x = c.scissor.rc.x;
+				y = curFBHeight_ - y - rc.h;
+			if (scissorRc.x != rc.x || scissorRc.y != y || scissorRc.w != rc.w || scissorRc.h != rc.h) {
+				glScissor(rc.x, y, rc.w, rc.h);
+				scissorRc.x = rc.x;
 				scissorRc.y = y;
-				scissorRc.w = c.scissor.rc.w;
-				scissorRc.h = c.scissor.rc.h;
+				scissorRc.w = rc.w;
+				scissorRc.h = rc.h;
 			}
 			CHECK_GL_ERROR_IF_DEBUG();
 			break;

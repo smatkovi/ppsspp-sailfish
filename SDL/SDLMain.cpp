@@ -190,6 +190,19 @@ static void StopSDLAudioDevice() {
 	}
 }
 
+#if defined(SAILFISH)
+// Physical pixels in; keeps pixel_xres/yres physical (the GL backbuffer stays
+// portrait) and swaps dp_xres/yres to landscape so the UI lays itself out wide.
+static void ApplySailfishScreen(int physW, int physH) {
+	// Pre-rotation convention (as on Android/Vulkan): pixel_* and dp_* carry
+	// the LOGICAL (landscape) size; only the backend knows the portrait buffer.
+	// Scissor/viewport rects then come in logical coordinates and the GL queue
+	// runner turns them into the physical framebuffer.
+	if (SailfishSensors::Rotated()) std::swap(physW, physH);
+	if (UpdateScreenScale(physW, physH)) NativeResized();
+}
+#endif
+
 static void UpdateScreenDPI(SDL_Window *window) {
 	int drawable_width, window_width;
 	SDL_GetWindowSize(window, &window_width, NULL);
@@ -744,6 +757,13 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 	// - The UI code expects motion events in "logical DPI" points
 	float mx = event.motion.x * g_DesktopDPI * g_display.dpi_scale_x;
 	float my = event.motion.y * g_DesktopDPI * g_display.dpi_scale_x;
+#if defined(SAILFISH)
+	{
+		int pw = 0, ph = 0;
+		SDL_GetWindowSize(window, &pw, &ph);
+		SailfishSensors::RotateTouch(mx, my, pw * g_DesktopDPI * g_display.dpi_scale_x, ph * g_DesktopDPI * g_display.dpi_scale_x);
+	}
+#endif
 
 	switch (event.type) {
 	case SDL_QUIT:
@@ -769,7 +789,12 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 			bool fullscreen = (window_flags & SDL_WINDOW_FULLSCREEN);
 
 			// This one calls NativeResized if the size changed.
+#if defined(SAILFISH)
+			fprintf(stderr, "[sailfish] window size event %dx%d\n", new_width, new_height);
+			ApplySailfishScreen(new_width_px, new_height_px);
+#else
 			UpdateScreenScale(new_width_px, new_height_px);
+#endif
 
 			// Set variable here in case fullscreen was toggled by hotkey
 			if (g_Config.UseFullScreen() != fullscreen) {
@@ -898,6 +923,9 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 			input.id = event.tfinger.fingerId;
 			input.x = event.tfinger.x * w * g_DesktopDPI * g_display.dpi_scale_x;
 			input.y = event.tfinger.y * h * g_DesktopDPI * g_display.dpi_scale_x;
+#if defined(SAILFISH)
+			SailfishSensors::RotateTouch(input.x, input.y, w * g_DesktopDPI * g_display.dpi_scale_x, h * g_DesktopDPI * g_display.dpi_scale_x);
+#endif
 			input.flags = TOUCH_MOVE;
 			input.timestamp = event.tfinger.timestamp;
 			NativeTouch(input);
@@ -911,8 +939,18 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 			input.id = event.tfinger.fingerId;
 			input.x = event.tfinger.x * w * g_DesktopDPI * g_display.dpi_scale_x;
 			input.y = event.tfinger.y * h * g_DesktopDPI * g_display.dpi_scale_x;
+#if defined(SAILFISH)
+			SailfishSensors::RotateTouch(input.x, input.y, w * g_DesktopDPI * g_display.dpi_scale_x, h * g_DesktopDPI * g_display.dpi_scale_x);
+#endif
 			input.flags = TOUCH_DOWN;
 			input.timestamp = event.tfinger.timestamp;
+			if (getenv("PPSSPP_SENSOR_LOG")) {
+				int dw = 0, dh = 0;
+				SDL_GL_GetDrawableSize(window, &dw, &dh);
+				fprintf(stderr, "[sailfish] touch raw %.4f %.4f  win %dx%d drawable %dx%d  -> %.1f %.1f  (dpi %.3f scale %.3f/%.3f pixel %dx%d dp %dx%d)\n",
+				         event.tfinger.x, event.tfinger.y, w, h, dw, dh, input.x, input.y, g_DesktopDPI,
+				         g_display.dpi_scale_x, g_display.dpi_scale_y, g_display.pixel_xres, g_display.pixel_yres, g_display.dp_xres, g_display.dp_yres);
+			}
 			NativeTouch(input);
 
 			KeyInput key;
@@ -930,6 +968,9 @@ static void ProcessSDLEvent(SDL_Window *window, const SDL_Event &event, InputSta
 			input.id = event.tfinger.fingerId;
 			input.x = event.tfinger.x * w * g_DesktopDPI * g_display.dpi_scale_x;
 			input.y = event.tfinger.y * h * g_DesktopDPI * g_display.dpi_scale_x;
+#if defined(SAILFISH)
+			SailfishSensors::RotateTouch(input.x, input.y, w * g_DesktopDPI * g_display.dpi_scale_x, h * g_DesktopDPI * g_display.dpi_scale_x);
+#endif
 			input.flags = TOUCH_UP;
 			input.timestamp = event.tfinger.timestamp;
 			NativeTouch(input);
@@ -1347,6 +1388,12 @@ int main(int argc, char *argv[]) {
 #endif
 	NativeInit(remain_argc, (const char **)remain_argv, path, external_dir, nullptr);
 
+#if defined(SAILFISH)
+	SailfishSensors::PrepareWindow();
+	// Cover lipstick's status bar so the whole panel is ours.
+	g_Config.bFullScreen = true;
+#endif
+
 	// Use the setting from the config when initing the window.
 	if (g_Config.UseFullScreen())
 		mode |= SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -1428,7 +1475,17 @@ int main(int argc, char *argv[]) {
 
 	float dpi_scale = 1.0f / (g_ForcedDPI == 0.0f ? g_DesktopDPI : g_ForcedDPI);
 
+#if defined(SAILFISH)
+	static SDL_Window *g_sailfishWindow = window;
+	ApplySailfishScreen(w * g_DesktopDPI, h * g_DesktopDPI);
+	SailfishSensors::SetResizeCallback([]() {
+		int pw = 0, ph = 0;
+		SDL_GetWindowSize(g_sailfishWindow, &pw, &ph);
+		ApplySailfishScreen(pw * g_DesktopDPI, ph * g_DesktopDPI);
+	});
+#else
 	UpdateScreenScale(w * g_DesktopDPI, h * g_DesktopDPI);
+#endif
 
 	bool mainThreadIsRender = g_Config.iGPUBackend == (int)GPUBackend::OPENGL;
 

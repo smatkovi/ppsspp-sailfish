@@ -20,6 +20,7 @@
 #include "Common/GPU/OpenGL/GLFeatures.h"
 
 #include "Common/GPU/OpenGL/GLRenderManager.h"
+#include "Common/System/Display.h"
 
 // #define DEBUG_READ_PIXELS 1
 
@@ -334,6 +335,10 @@ public:
 
 	void SetTargetSize(int w, int h) override {
 		DrawContext::SetTargetSize(w, h);
+		// Callers pass the logical size; the default framebuffer is
+		// physically the other way round when the display is pre-rotated.
+		if (g_display.rotation == DisplayRotation::ROTATE_90 || g_display.rotation == DisplayRotation::ROTATE_270)
+			std::swap(w, h);
 		renderManager_.Resize(w, h);
 	}
 

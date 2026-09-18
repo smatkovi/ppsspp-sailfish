@@ -5,6 +5,12 @@
 
 DisplayProperties g_display;
 
+// Rotation the platform layer asks for when the compositor itself never turns
+// the surface (Sailfish OS): the Vulkan context then renders pre-rotated into
+// the portrait swapchain exactly as it would for an Android pre-transform, only
+// that the display engine has nothing left to undo. ROTATE_0 = not requested.
+DisplayRotation g_forcedDisplayRotation = DisplayRotation::ROTATE_0;
+
 template<class T>
 void RotateRectToDisplayImpl(DisplayRect<T> &rect, T curRTWidth, T curRTHeight) {
 	switch (g_display.rotation) {

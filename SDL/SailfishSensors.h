@@ -16,4 +16,17 @@ bool Init();
 // orientation changes. Call once per main-loop iteration on the main thread.
 void Poll();
 void Shutdown();
+
+// Whole-app landscape (Vulkan backend only): the window stays portrait, PPSSPP
+// renders everything pre-rotated and turns the touch input to match. Call
+// PrepareWindow() after the config is loaded and before the window exists.
+bool WholeAppRotation();
+void PrepareWindow();
+// True while the whole UI is rendered rotated (dp is landscape, pixels stay
+// portrait). SDLMain swaps dp_xres/dp_yres itself after UpdateScreenScale.
+bool Rotated();
+// Physical touch position (in the same units as physW/physH) -> logical.
+void RotateTouch(float &x, float &y, float physW, float physH);
+// Called after the rotation changed so the front end re-applies its sizes.
+void SetResizeCallback(void (*cb)());
 }

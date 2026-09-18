@@ -1454,6 +1454,31 @@ bool VulkanContext::InitSwapchain() {
 		preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 	}
 
+	// See g_forcedDisplayRotation in Display.cpp: a compositor that never
+	// rotates gives us an identity transform on a portrait surface; the app
+	// still wants to be landscape, so we render pre-rotated ourselves.
+	extern DisplayRotation g_forcedDisplayRotation;
+	if (preTransform == VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR && g_forcedDisplayRotation != DisplayRotation::ROTATE_0) {
+		g_display.rotation = g_forcedDisplayRotation;
+		g_display.rot_matrix.setIdentity();
+		switch (g_forcedDisplayRotation) {
+		case DisplayRotation::ROTATE_90:
+			g_display.rot_matrix.setRotationZ90();
+			std::swap(swapChainExtent_.width, swapChainExtent_.height);
+			break;
+		case DisplayRotation::ROTATE_180:
+			g_display.rot_matrix.setRotationZ180();
+			break;
+		case DisplayRotation::ROTATE_270:
+			g_display.rot_matrix.setRotationZ270();
+			std::swap(swapChainExtent_.width, swapChainExtent_.height);
+			break;
+		default:
+			break;
+		}
+		INFO_LOG(Log::G3D, "Forced display rotation %d, logical swapchain %dx%d", (int)g_forcedDisplayRotation, swapChainExtent_.width, swapChainExtent_.height);
+	}
+
 	std::string preTransformStr = surface_transforms_to_string(preTransform);
 	INFO_LOG(Log::G3D, "Transform supported: %s current: %s chosen: %s", supportedTransforms.c_str(), currentTransform.c_str(), preTransformStr.c_str());
 

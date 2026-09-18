@@ -142,7 +142,8 @@ static void ProcessTiltNfsShift(bool landscape, float x, float y, float z, bool 
 	// frame (x right, y up, z out of the screen). A landscape window puts it
 	// on device y; PPSSPP's internal rotation on a portrait window does the
 	// same, turned by another 90 degrees each step.
-	int rot = landscape ? 90 : 0;
+	int rot = 0;
+	if (landscape) rot = g_display.rotation == DisplayRotation::ROTATE_270 ? 270 : 90;
 	switch (g_Config.iInternalScreenRotation) {
 	case ROTATION_LOCKED_VERTICAL: rot += 90; break;
 	case ROTATION_LOCKED_HORIZONTAL180: rot += 180; break;
