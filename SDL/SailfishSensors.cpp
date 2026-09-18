@@ -55,9 +55,10 @@ void SetRotation(DisplayRotation want) {
 	g_forcedDisplayRotation = want;
 	g_display.rotation = want;
 	SetRotMatrix(want);
-	// Lipstick only needs to know for its edge gestures and the keyboard; the
-	// buffer itself is shown as drawn.
-	SDL_SetHint(SDL_HINT_QTWAYLAND_CONTENT_ORIENTATION, want == DisplayRotation::ROTATE_90 ? "landscape" : "inverted-landscape");
+	// Deliberately no content-orientation hint here: we turn the picture
+	// ourselves. Told "landscape", Lipstick configures the surface as
+	// 2272x1032 and rescales our portrait buffer into it - that was the
+	// picture squashed into a band.
 	fprintf(stderr, "[sailfish] display rotation -> %d\n", (int)want);
 	if (g_resizeCb) g_resizeCb();
 }
@@ -197,7 +198,12 @@ void PrepareWindow() {
 	g_forcedDisplayRotation = start;
 	g_display.rotation = start;
 	SetRotMatrix(start);
-	SDL_SetHint(SDL_HINT_QTWAYLAND_CONTENT_ORIENTATION, start == DisplayRotation::ROTATE_90 ? "landscape" : "inverted-landscape");
+	// We pre-rotate the whole picture ourselves, so Lipstick must treat the
+	// surface as plain portrait (geometry 1032x2272 = the EGL drawable). With
+	// "landscape" it reshapes the surface to 2272x1032 and rescales our buffer
+	// into it (picture squashed into a band); that state even lingers for the
+	// app across relaunches, hence set "portrait" explicitly every start.
+	SDL_SetHint(SDL_HINT_QTWAYLAND_CONTENT_ORIENTATION, "portrait");
 	// The whole picture is turned now; a game rotated on top of that would be
 	// turned twice.
 	g_Config.iInternalScreenRotation = ROTATION_LOCKED_HORIZONTAL;

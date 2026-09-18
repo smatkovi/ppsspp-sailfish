@@ -191,15 +191,32 @@ static void StopSDLAudioDevice() {
 }
 
 #if defined(SAILFISH)
-// Physical pixels in; keeps pixel_xres/yres physical (the GL backbuffer stays
-// portrait) and swaps dp_xres/yres to landscape so the UI lays itself out wide.
+static SDL_Window *g_sailfishWindow = nullptr;
+
+// Decides the logical (pre-rotated) screen size. The size SDL reports in
+// SIZE_CHANGED / SDL_GetWindowSize is not reliable on this Wayland: at startup
+// it is sometimes given in the content orientation's frame (2272x1032) while
+// the EGL drawable - the buffer we actually render into - is 1032x2272 in the
+// device frame; a game booted with that ended up with a portrait logical size
+// and stayed squashed. The drawable is consistently reported in the device
+// frame, so it is the source of truth whenever we have a window.
 static void ApplySailfishScreen(int physW, int physH) {
-	// Pre-rotation convention (as on Android/Vulkan): pixel_* and dp_* carry
-	// the LOGICAL (landscape) size; only the backend knows the portrait buffer.
-	// Scissor/viewport rects then come in logical coordinates and the GL queue
-	// runner turns them into the physical framebuffer.
-	if (SailfishSensors::Rotated()) std::swap(physW, physH);
-	if (UpdateScreenScale(physW, physH)) NativeResized();
+	if (g_sailfishWindow && g_Config.iGPUBackend == (int)GPUBackend::OPENGL) {
+		int dw = 0, dh = 0;
+		SDL_GL_GetDrawableSize(g_sailfishWindow, &dw, &dh);
+		if (dw > 0 && dh > 0) { physW = dw; physH = dh; }
+	}
+	int logW = physW, logH = physH;
+	if (SailfishSensors::Rotated()) {
+		// Pre-rotation convention (as on Android/Vulkan): pixel_* and dp_*
+		// carry the LOGICAL landscape size, only the backend knows the portrait
+		// buffer. Long side across, whichever way the buffer was reported.
+		logW = physW > physH ? physW : physH;
+		logH = physW > physH ? physH : physW;
+	}
+	if (getenv("PPSSPP_SENSOR_LOG"))
+		fprintf(stderr, "[sailfish] screen: physical %dx%d -> logical %dx%d\n", physW, physH, logW, logH);
+	if (UpdateScreenScale(logW, logH)) NativeResized();
 }
 #endif
 
@@ -1313,6 +1330,15 @@ int main(int argc, char *argv[]) {
 	}
 	g_DesktopWidth = displayMode.w;
 	g_DesktopHeight = displayMode.h;
+#if defined(SAILFISH)
+	// The device's frame is portrait and so is the EGL drawable in every run,
+	// but for a few seconds after a previous instance with landscape content
+	// orientation exited, Lipstick still reports the desktop mode as 2272x1032.
+	// A window requested with that geometry comes up squashed although our own
+	// pre-rotation state is right. Always ask for the portrait geometry.
+	if (g_DesktopWidth > g_DesktopHeight) std::swap(g_DesktopWidth, g_DesktopHeight);
+	fprintf(stderr, "[sailfish] desktop mode %dx%d -> window %dx%d\n", displayMode.w, displayMode.h, g_DesktopWidth, g_DesktopHeight);
+#endif
 	g_RefreshRate = displayMode.refresh_rate;
 
 	SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
@@ -1424,6 +1450,20 @@ int main(int argc, char *argv[]) {
 		if (g_Config.iWindowHeight > 0 && set_yres <= 0)
 			h = g_Config.iWindowHeight;
 	}
+#if defined(SAILFISH)
+	// No SDL_WINDOW_FULLSCREEN_DESKTOP here: with it SDL sizes the window from
+	// the output's logical mode, which Lipstick reports as 2272x1032 whenever
+	// its own shell is in landscape (the phone held sideways at launch). The
+	// EGL drawable stays 1032x2272, geometry and buffer disagree, and the
+	// compositor squashes the picture into a band. A plain window of the
+	// panel's portrait size keeps both alike; Lipstick shows app windows
+	// full-screen anyway. w/h come from the portrait-normalized desktop mode,
+	// never from a remembered window size.
+	mode &= ~(SDL_WINDOW_FULLSCREEN_DESKTOP | SDL_WINDOW_FULLSCREEN);
+	w = g_DesktopWidth;
+	h = g_DesktopHeight;
+	fprintf(stderr, "[sailfish] creating plain window %dx%d\n", w, h);
+#endif
 
 	GraphicsContext *graphicsContext = nullptr;
 	SDL_Window *window = nullptr;
@@ -1487,7 +1527,7 @@ int main(int argc, char *argv[]) {
 	float dpi_scale = 1.0f / (g_ForcedDPI == 0.0f ? g_DesktopDPI : g_ForcedDPI);
 
 #if defined(SAILFISH)
-	static SDL_Window *g_sailfishWindow = window;
+	g_sailfishWindow = window;
 	ApplySailfishScreen(w * g_DesktopDPI, h * g_DesktopDPI);
 	SailfishSensors::SetResizeCallback([]() {
 		int pw = 0, ph = 0;

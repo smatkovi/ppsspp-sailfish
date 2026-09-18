@@ -152,9 +152,9 @@ static void ProcessTiltNfsShift(bool landscape, float x, float y, float z, bool 
 	}
 	float h;
 	switch (rot % 360) {
-	case 90: h = y; break;
+	case 90: h = -y; break;   // sign verified on the Jolla C2 (was mirrored with +y)
 	case 180: h = x; break;
-	case 270: h = -y; break;
+	case 270: h = y; break;
 	default: h = -x; break;  // PPSSPP's own convention for an upright phone
 	}
 
