@@ -1,3 +1,4 @@
+#include <wayland-egl.h>
 #include <vector>
 
 #include "SDLGLGraphicsContext.h"
@@ -81,7 +82,7 @@ static int8_t EGL_Open(SDL_Window *window) {
 	g_Display = (EGLNativeDisplayType)nullptr;
 	g_Window = (EGLNativeWindowType)nullptr;
 #elif defined(__APPLE__)
-	g_Display = (EGLNativeDisplayType)XOpenDisplay(nullptr);
+	g_Display = (EGLNativeDisplayType)nullptr;
 	g_XDisplayOpen = g_Display != nullptr;
 	if (!g_XDisplayOpen)
 		EGL_ERROR("Unable to get display!", false);
@@ -92,17 +93,19 @@ static int8_t EGL_Open(SDL_Window *window) {
 	SDL_VERSION(&sysInfo.version);
 	if (!SDL_GetWindowWMInfo(window, &sysInfo)) {
 		printf("ERROR: Unable to retrieve native window handle\n");
-		g_Display = (EGLNativeDisplayType)XOpenDisplay(nullptr);
+		g_Display = (EGLNativeDisplayType)nullptr;
 		g_XDisplayOpen = g_Display != nullptr;
 		if (!g_XDisplayOpen)
 			EGL_ERROR("Unable to get display!", false);
 		g_Window = (EGLNativeWindowType)nullptr;
 	} else {
 		switch (sysInfo.subsystem) {
-		case SDL_SYSWM_X11:
+		#if 0
+case SDL_SYSWM_X11:
 			g_Display = (EGLNativeDisplayType)sysInfo.info.x11.display;
 			g_Window = (EGLNativeWindowType)sysInfo.info.x11.window;
 			break;
+#endif
 #if defined(SDL_VIDEO_DRIVER_DIRECTFB)
 		case SDL_SYSWM_DIRECTFB:
 			g_Display = (EGLNativeDisplayType)EGL_DEFAULT_DISPLAY;
@@ -112,7 +115,17 @@ static int8_t EGL_Open(SDL_Window *window) {
 #if SDL_VERSION_ATLEAST(2, 0, 2) && defined(SDL_VIDEO_DRIVER_WAYLAND)
 		case SDL_SYSWM_WAYLAND:
 			g_Display = (EGLNativeDisplayType)sysInfo.info.wl.display;
-			g_Window = (EGLNativeWindowType)sysInfo.info.wl.shell_surface;
+			int ww = 1920, hh = 1080;
+				SDL_GetWindowSize(window, &ww, &hh);
+				static struct wl_egl_window *egl_win = nullptr;
+				if (sysInfo.info.wl.surface) {
+					if (!egl_win) {
+						egl_win = wl_egl_window_create(sysInfo.info.wl.surface, ww, hh);
+					} else {
+						wl_egl_window_resize(egl_win, ww, hh, 0, 0);
+					}
+					g_Window = (EGLNativeWindowType)egl_win;
+				}
 			break;
 #endif
 #if SDL_VERSION_ATLEAST(2, 0, 5) && defined(SDL_VIDEO_DRIVER_VIVANTE)
@@ -125,7 +138,7 @@ static int8_t EGL_Open(SDL_Window *window) {
 
 		if (!EGL_OpenInit()) {
 			// Let's try again with X11.
-			g_Display = (EGLNativeDisplayType)XOpenDisplay(nullptr);
+			g_Display = (EGLNativeDisplayType)nullptr;
 			g_XDisplayOpen = g_Display != nullptr;
 			if (!g_XDisplayOpen)
 				EGL_ERROR("Unable to get display!", false);
@@ -288,7 +301,7 @@ void EGL_Close() {
 	if (g_Display != nullptr) {
 #if !defined(USING_FBDEV)
 		if (g_XDisplayOpen)
-			XCloseDisplay((Display *)g_Display);
+			/* XCloseDisplay */;
 #endif
 		g_XDisplayOpen = false;
 		g_Display = nullptr;

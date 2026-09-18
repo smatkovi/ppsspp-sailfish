@@ -420,6 +420,7 @@ void VulkanSetAvailable(bool available) {
 }
 
 bool VulkanMayBeAvailable() {
+	return false; // SailfishOS Patch
 #if PPSSPP_PLATFORM(IOS)
 	g_vulkanAvailabilityChecked = true;
 	// MoltenVK does no longer seem to support iOS <= 12, despite what the docs say.

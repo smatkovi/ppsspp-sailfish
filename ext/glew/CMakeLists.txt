@@ -5,7 +5,7 @@ if(NOT USE_LIBNX)
     add_library(Ext::GLEW ALIAS system_glew)
     target_link_libraries(system_glew INTERFACE GLEW::GLEW)
   else()
-    find_package(OpenGL REQUIRED)
+    # find_package(OpenGL REQUIRED)
     add_library(glew STATIC
       GL/glew.h
       GL/glxew.h

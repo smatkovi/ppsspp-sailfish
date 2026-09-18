@@ -1,3 +1,11 @@
+
+#include <EGL/egl.h>
+static inline void* _sailfish_egl_get_proc_address(const GLubyte *name) {
+    return (void*)eglGetProcAddress((const char*)name);
+}
+#undef glewGetProcAddress
+#define _GLEW_GET_PROC_ADDRESS_DISABLED _sailfish_egl_get_proc_address(name)
+
 /*
 ** The OpenGL Extension Wrangler Library
 ** Copyright (C) 2008-2017, Nigel Stewart <nigels[]users sourceforge net>
@@ -159,23 +167,23 @@ void* NSGLGetProcAddress (const GLubyte *name)
  * Define glewGetProcAddress.
  */
 #if defined(GLEW_REGAL)
-#  define glewGetProcAddress(name) regalGetProcAddress((const GLchar *)name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED regalGetProcAddress((const GLchar *)name)
 #elif defined(GLEW_OSMESA)
-#  define glewGetProcAddress(name) OSMesaGetProcAddress((const char *)name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED OSMesaGetProcAddress((const char *)name)
 #elif defined(GLEW_EGL)
-#  define glewGetProcAddress(name) eglGetProcAddress((const char *)name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED eglGetProcAddress((const char *)name)
 #elif defined(_WIN32)
-#  define glewGetProcAddress(name) wglGetProcAddress((LPCSTR)name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED wglGetProcAddress((LPCSTR)name)
 #elif defined(__APPLE__) && !defined(GLEW_APPLE_GLX)
-#  define glewGetProcAddress(name) NSGLGetProcAddress(name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED NSGLGetProcAddress(name)
 #elif defined(__sgi) || defined(__sun) || defined(__HAIKU__)
-#  define glewGetProcAddress(name) dlGetProcAddress(name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED dlGetProcAddress(name)
 #elif defined(__ANDROID__)
-#  define glewGetProcAddress(name) NULL /* TODO */
+#define _GLEW_GET_PROC_ADDRESS_DISABLED NULL /* TODO */
 #elif defined(__native_client__)
-#  define glewGetProcAddress(name) NULL /* TODO */
+#define _GLEW_GET_PROC_ADDRESS_DISABLED NULL /* TODO */
 #else /* __linux */
-#  define glewGetProcAddress(name) (*glXGetProcAddressARB)(name)
+#define _GLEW_GET_PROC_ADDRESS_DISABLED (*glXGetProcAddressARB)(name)
 #endif
 
 /*

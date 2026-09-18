@@ -104,6 +104,12 @@ bool SDLVulkanGraphicsContext::Init(SDL_Window *&window, int x, int y, int w, in
 		exit(1);
 	}
 	switch (sys_info.subsystem) {
+#ifdef SDL_SYSWM_WAYLAND
+		case SDL_SYSWM_WAYLAND:
+			vulkan_->InitSurface(WINDOWSYSTEM_WAYLAND, (void*)sys_info.info.wl.display, (void *)sys_info.info.wl.surface);
+			break;
+#endif
+#ifdef SDL_SYSWM_X11
 	case SDL_SYSWM_X11:
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
 		vulkan_->InitSurface(WINDOWSYSTEM_XLIB, (void*)sys_info.info.x11.display,
@@ -113,6 +119,7 @@ bool SDLVulkanGraphicsContext::Init(SDL_Window *&window, int x, int y, int w, in
 				(void *)(intptr_t)sys_info.info.x11.window);
 #endif
 		break;
+#endif
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
 	case SDL_SYSWM_WAYLAND:
 		vulkan_->InitSurface(WINDOWSYSTEM_WAYLAND, (void*)sys_info.info.wl.display, (void *)sys_info.info.wl.surface);
