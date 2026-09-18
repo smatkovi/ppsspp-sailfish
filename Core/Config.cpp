@@ -814,6 +814,7 @@ static const ConfigSetting controlSettings[] = {
 	ConfigSetting("TiltCircularDeadzone", &g_Config.bTiltCircularDeadzone, true, CfgFlag::PER_GAME),
 	ConfigSetting("TiltInputType", &g_Config.iTiltInputType, 0, CfgFlag::PER_GAME),
 	ConfigSetting("TiltNfsShift", &g_Config.bTiltNfsShift, false, CfgFlag::PER_GAME),
+	ConfigSetting("TiltNfsSmoothingMs", &g_Config.fTiltNfsSmoothingMs, 111.2f, CfgFlag::PER_GAME),
 	ConfigSetting("TiltNfsSensitivity", &g_Config.fTiltNfsSensitivity, 1.0f, CfgFlag::PER_GAME),
 	ConfigSetting("TiltAutoRotateSwap", &g_Config.bTiltAutoRotateSwap, false, CfgFlag::PER_GAME),
 #endif

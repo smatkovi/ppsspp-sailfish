@@ -1,0 +1,38 @@
+#!/bin/sh
+# PPSSPP on Sailfish OS. The accelerometer and the device orientation come
+# from sensorfw inside ppsspp-bin (QtSensors); the former Python bridge that
+# turned the sensor into a virtual joystick is no longer needed.
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+export SDL_VIDEODRIVER=wayland
+export PPSSPP_ASSET_DIR=/usr/share/ppsspp/assets
+export LD_LIBRARY_PATH="/usr/lib64:/vendor/lib64:$LD_LIBRARY_PATH"
+
+# Clock floor for the big cluster (cpu4-7 on the Jolla C2) while we run: with
+# ~30% average load schedutil parks those cores at 650 MHz between bursts and a
+# heavy frame then runs late before the clock catches up - emulation stutter,
+# audible in the sound. util clamp does not move the clock on this kernel even
+# as root, so the floor goes through sysfs. Needs passwordless sudo (developer
+# mode); silently skipped otherwise. Restored when ppsspp exits.
+# PPSSPP_CPU_FLOOR_KHZ=0 disables it, another value changes it.
+POLICY=/sys/devices/system/cpu/cpufreq/policy4
+FLOOR_KHZ="${PPSSPP_CPU_FLOOR_KHZ:-1650000}"
+OLD_MIN=$(cat "$POLICY/scaling_min_freq" 2>/dev/null)
+restore_floor() {
+	[ -n "$OLD_MIN" ] && echo "$OLD_MIN" | sudo -n tee "$POLICY/scaling_min_freq" >/dev/null 2>&1
+}
+if [ -n "$OLD_MIN" ] && [ "$FLOOR_KHZ" != 0 ] && sudo -n true 2>/dev/null; then
+	if echo "$FLOOR_KHZ" | sudo -n tee "$POLICY/scaling_min_freq" >/dev/null 2>&1; then
+		trap restore_floor EXIT INT TERM HUP
+	fi
+fi
+
+# Emulation on the big cores only: left to the scheduler the Emu thread drifts
+# onto the little cluster and the emulation stutters. No exec, so the trap
+# above still runs when ppsspp-bin exits.
+if command -v taskset >/dev/null 2>&1; then
+	taskset -c 4-7 /usr/bin/ppsspp-bin "$@"
+else
+	/usr/bin/ppsspp-bin "$@"
+fi

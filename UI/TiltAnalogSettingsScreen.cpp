@@ -127,8 +127,11 @@ void TiltAnalogSettingsScreen::CreateViews() {
 			});
 		if (g_Config.bTiltNfsShift) {
 			settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltNfsSensitivity, 0.79f, 1.25f, 1.0f, co->T("NFS Shift sensitivity"), 0.01f, screenManager(), "x"))->SetEnabledFunc(enabledFunc);
+			settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltNfsSmoothingMs, 0.0f, 300.0f, 111.2f, co->T("NFS Shift smoothing"), 1.0f, screenManager(), "ms"))->SetEnabledFunc(enabledFunc);
 #if defined(SAILFISH)
 			settings->Add(new CheckBox(&g_Config.bTiltAutoRotateSwap, co->T("Swap auto-rotate direction")))->SetEnabledFunc(enabledFunc);
+			// Compensates the game's own stick dead zone (see ProcessTiltNfsShift).
+			settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltInverseDeadzone, 0.0f, 0.8f, 0.0f, co->T("Low end radius"), 0.02f, screenManager(), "/ 1.0"))->SetEnabledFunc(enabledFunc);
 #endif
 		}
 	}

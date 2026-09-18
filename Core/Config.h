@@ -322,6 +322,7 @@ public:
 	// Core/TiltEventProcessor.cpp.
 	bool bTiltNfsShift;
 	float fTiltNfsSensitivity;   // the game's option: 0.79 .. 1.25, shipped 1.0
+	float fTiltNfsSmoothingMs;  // time constant of the NFS Shift steer filter; 111.2 = original, 0 = off
 	// Sailfish auto-rotation: swap which way round the device maps to the two
 	// vertical rotations.
 	bool bTiltAutoRotateSwap;

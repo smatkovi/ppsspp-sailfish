@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=PPSSPP
+Exec=/usr/bin/ppsspp
+Icon=ppsspp
+Terminal=false
+
+[X-Sailjail]
+Sandboxing=Disabled

@@ -145,3 +145,23 @@ RAPrefs_PPSSPP.cfg
 cmake-build-*/
 
 /.vscode/
+
+# Sailfish packaging: pkg/usr/share/ppsspp/assets is a copy of assets/ made by
+# pkg/prepare-assets.sh, the binary is the build output. Only the launcher,
+# the desktop file and the two extra images are tracked.
+pkg/usr/bin/ppsspp-bin
+pkg/usr/share/ppsspp/assets/*
+!pkg/usr/share/ppsspp/assets/icon_regular_72.png
+!pkg/usr/share/ppsspp/assets/logo.png
+build/
+sf-*.txt
+sf-*.log
+*.bak
+patch.py
+
+# not part of the build (leftover plain directories)
+ext/aemu_postoffice/
+ext/freetype/
+ext/lua/
+ext/nanosvg/
+frametests/

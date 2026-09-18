@@ -175,7 +175,12 @@ static void ProcessTiltNfsShift(bool landscape, float x, float y, float z, bool 
 	} else {
 		float dtMs = (float)((now - g_nfsLastTime) * 1000.0);
 		if (dtMs < 0.0f) dtMs = 0.0f;
-		float k = 1.0f - powf(0.0001f, dtMs / 1024.0f);
+		// The original: steer += (target - steer) * (1 - 0.0001^(dt/1024)),
+		// i.e. a first-order filter with a 111.2 ms time constant. Games such
+		// as Gran Turismo filter the stick again themselves, so the constant is
+		// configurable (0 = no filter here, only the game's own).
+		float tau = g_Config.fTiltNfsSmoothingMs;
+		float k = tau > 0.0f ? 1.0f - expf(-dtMs / tau) : 1.0f;
 		g_nfsSteer += (target - g_nfsSteer) * k;
 	}
 	g_nfsLastTime = now;
@@ -187,6 +192,19 @@ static void ProcessTiltNfsShift(bool landscape, float x, float y, float z, bool 
 		if (out < -1.0f) out = -1.0f;
 	}
 	if (invertX) out = -out;
+	// NFS Shift read the accelerometer directly; here the value becomes the
+	// PSP analog stick, and games like Gran Turismo ignore small deflections
+	// (their own dead zone) - felt as a dead band and a late response. "Low
+	// end radius" (fTiltInverseDeadzone) lifts every non-zero steer past that
+	// band so the car answers to the first degree of tilt again. A minimal
+	// centre threshold keeps sensor noise from flipping the lifted value.
+	const float lowEnd = g_Config.fTiltInverseDeadzone;
+	if (lowEnd > 0.0f) {
+		if (fabsf(out) < 0.01f)
+			out = 0.0f;
+		else
+			out = (out > 0.0f ? lowEnd : -lowEnd) + out * (1.0f - lowEnd);
+	}
 	rawTiltAnalogX = out;
 	rawTiltAnalogY = 0.0f;
 	GenerateAnalogStickEvent(out, 0.0f);

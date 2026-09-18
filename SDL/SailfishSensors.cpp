@@ -4,9 +4,12 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <atomic>
+
 #include <QAccelerometer>
 #include <QCoreApplication>
 #include <QOrientationSensor>
+#include <QThread>
 
 #include <SDL.h>
 
@@ -28,6 +31,37 @@ bool g_active;
 int g_lastOrientation = -1;
 bool g_wholeApp;
 void (*g_resizeCb)();
+
+constexpr float kPerG = 1.0f / 9.80665f;
+std::atomic<int> g_accelThreadState{0};  // 0 starting, 1 running, 2 failed
+int g_accelThreadRate;
+
+// The accelerometer on its own thread with its own event loop: every sample
+// reaches the emulated stick at the sensor's rate. Polled from the render
+// loop instead, a sample waited for the next rendered frame and then for the
+// next sceCtrl sampling - about 26 ms on average before the game saw it.
+class AccelThread : public QThread {
+	void run() override {
+		QAccelerometer acc;
+		acc.setAccelerationMode(QAccelerometer::Combined);
+		if (!acc.connectToBackend()) { g_accelThreadState = 2; return; }
+		int rate = 0;
+		for (const qrange &r : acc.availableDataRates())
+			if (r.second > rate) rate = r.second;
+		if (rate <= 0) rate = 100;
+		acc.setDataRate(rate);
+		QObject::connect(&acc, &QSensor::readingChanged, [&acc]() {
+			if (QAccelerometerReading *r = acc.reading())
+				NativeAccelerometer(r->x() * kPerG, r->y() * kPerG, r->z() * kPerG);
+		});
+		if (!acc.start()) { g_accelThreadState = 2; return; }
+		g_accelThreadRate = acc.dataRate() > 0 ? acc.dataRate() : rate;
+		g_accelThreadState = 1;
+		exec();
+		acc.stop();
+	}
+};
+AccelThread *g_accelThread;
 
 // Which of the two landscape rotations goes with which device pose depends on
 // how the rotation matrices are defined; TiltAutoRotateSwap flips it.
@@ -118,17 +152,38 @@ bool Init() {
 	if (g_active) return true;
 	if (getenv("PPSSPP_NO_SENSORS")) return false;
 	EnsureApp();
-	g_accel = new QAccelerometer();
-	g_accel->setAccelerationMode(QAccelerometer::Combined);
-	if (!g_accel->connectToBackend()) {
-		WARN_LOG(Log::System, "Sailfish: no accelerometer backend");
-		delete g_accel;
-		g_accel = nullptr;
-		return false;
+	// Preferred: the accelerometer thread. PPSSPP_ACCEL_POLL=1 forces the old
+	// per-frame polling.
+	if (!getenv("PPSSPP_ACCEL_POLL")) {
+		g_accelThread = new AccelThread();
+		g_accelThread->start();
+		for (int i = 0; i < 200 && g_accelThreadState == 0; ++i)
+			QThread::msleep(10);
+		if (g_accelThreadState == 1) {
+			INFO_LOG(Log::System, "Sailfish: accelerometer thread at %d Hz", g_accelThreadRate);
+			fprintf(stderr, "[sailfish] accelerometer thread running at %d Hz\n", g_accelThreadRate);
+			g_active = true;
+		} else {
+			WARN_LOG(Log::System, "Sailfish: accelerometer thread did not start, polling instead");
+			g_accelThread->quit();
+			g_accelThread->wait();
+			delete g_accelThread;
+			g_accelThread = nullptr;
+		}
 	}
-	g_accel->setDataRate(50);
-	g_active = g_accel->start();
-	INFO_LOG(Log::System, "Sailfish: accelerometer %s", g_active ? "started" : "failed to start");
+	if (!g_accelThread) {
+		g_accel = new QAccelerometer();
+		g_accel->setAccelerationMode(QAccelerometer::Combined);
+		if (!g_accel->connectToBackend()) {
+			WARN_LOG(Log::System, "Sailfish: no accelerometer backend");
+			delete g_accel;
+			g_accel = nullptr;
+			return false;
+		}
+		g_accel->setDataRate(50);
+		g_active = g_accel->start();
+		INFO_LOG(Log::System, "Sailfish: accelerometer %s", g_active ? "started" : "failed to start");
+	}
 
 	g_orient = new QOrientationSensor();
 	if (g_orient->connectToBackend() && g_orient->start()) {
@@ -147,9 +202,10 @@ void Poll() {
 	++polls;
 	QCoreApplication::processEvents();
 	static bool logIt = getenv("PPSSPP_SENSOR_LOG") != nullptr;
-	QAccelerometerReading *r = g_accel->reading();
+	QAccelerometerReading *r = g_accel ? g_accel->reading() : nullptr;
 	if (logIt && (polls == 1 || polls % 200 == 0))
-		fprintf(stderr, "[sailfish] poll #%d, reading %s, orientation reading %s\n", polls, r ? "yes" : "null",
+		fprintf(stderr, "[sailfish] poll #%d, %s, orientation reading %s\n", polls,
+		        g_accelThread ? "accelerometer on its own thread" : (r ? "reading yes" : "reading null"),
 		        g_orient && g_orient->reading() ? "yes" : "null");
 	if (r) {
 		// Qt reports m/s^2 in the device's portrait frame (x right, y up,
@@ -229,6 +285,10 @@ void RotateTouch(float &x, float &y, float physW, float physH) {
 void SetResizeCallback(void (*cb)()) { g_resizeCb = cb; }
 
 void Shutdown() {
+	if (g_accelThread) {
+		g_accelThread->quit();
+		g_accelThread->wait();
+	}
 	if (g_accel) g_accel->stop();
 	if (g_orient) g_orient->stop();
 	g_active = false;
