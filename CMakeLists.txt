@@ -1439,7 +1439,8 @@ else()
 		# SDL2 on Sailfish has neither sensors nor a window that turns with
 		# the device; QtSensors (sensorfw) provides both, see SDL/SailfishSensors.cpp.
 		find_package(PkgConfig REQUIRED)
-		pkg_check_modules(SFOS_QT REQUIRED IMPORTED_TARGET Qt5Core Qt5Sensors)
+		# Qt5DBus: mce's display blanking pause, see SailfishSensors::KeepDisplayAwake.
+		pkg_check_modules(SFOS_QT REQUIRED IMPORTED_TARGET Qt5Core Qt5Sensors Qt5DBus)
 		add_definitions(-DSAILFISH)
 		set(nativeExtra ${nativeExtra}
 			SDL/SailfishSensors.h

@@ -1,11 +1,14 @@
 Name:       ppsspp
 Summary:    PPSSPP PSP Emulator for Sailfish OS
 Version:    1.19.0
-Release:    17
+Release:    18
 Group:      Applications/Games
 License:    GPLv2+
 URL:        https://www.ppsspp.org/
 Requires:   SDL2, libGLESv2, libEGL
+# The accelerometer and the orientation sensor come from sensorfw through
+# QtSensors; its backend plugin is loaded at runtime, so rpm cannot see it.
+Requires:   qt5-qtsensors-plugin-sensorfw
 
 %description
 A fast and portable PSP emulator optimized for mobile platforms.
@@ -34,6 +37,14 @@ cp -a /home/mersdk/ppsspp/pkg/usr/share/applications/ppsspp.desktop %{buildroot}
 /usr/share/applications/ppsspp.desktop
 
 %changelog
+* Sat Sep 19 2026 Sebastian Matkovich <sebastian.matkovich@gmail.com> - 1.19.0-18
+- "Low end radius" (the tilt lift over the game's own dead zone) is a per-game
+  setting again: Gran Turismo needs about 0.5, NFS Underground none - with the
+  lift the car wobbles there. All other tilt settings stay device-wide.
+- The display no longer blanks while a game runs (mce blanking pause). It used
+  to take the accelerometer with it: sensorfw stops it with the screen, so
+  tilt steering died mid-race when nobody touched the screen.
+- Requires qt5-qtsensors-plugin-sensorfw explicitly
 * Fri Sep 18 2026 Sebastian Matkovich <sebastian.matkovich@gmail.com> - 1.19.0-17
 - Touch layout, sound and tilt settings are device-wide, no longer per-game:
   a change in the main menu applies to every game; per-game inis keep only

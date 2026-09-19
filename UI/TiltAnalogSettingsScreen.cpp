@@ -96,6 +96,14 @@ void TiltAnalogSettingsScreen::CreateViews() {
 		return g_Config.iTiltInputType != 0;
 	};
 
+	// "Low end radius" is the only per-game tilt setting (CfgFlag::PER_GAME): it
+	// lifts the stick past the dead zone the game itself applies, and that is a
+	// property of the game. With a game config loaded the slider edits that game,
+	// without one it sets what games start from.
+	const std::string_view lowEndLabel = g_Config.bGameSpecific
+		? co->T("TiltLowEndThisGame", "Low end radius (this game)")
+		: co->T("TiltLowEndDefault", "Low end radius (default for games)");
+
 	settings->SetSpacing(0);
 
 	settings->Add(new ItemHeader(co->T("Tilt control setup")));
@@ -131,13 +139,13 @@ void TiltAnalogSettingsScreen::CreateViews() {
 #if defined(SAILFISH)
 			settings->Add(new CheckBox(&g_Config.bTiltAutoRotateSwap, co->T("Swap auto-rotate direction")))->SetEnabledFunc(enabledFunc);
 			// Compensates the game's own stick dead zone (see ProcessTiltNfsShift).
-			settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltInverseDeadzone, 0.0f, 0.8f, 0.0f, co->T("Low end radius"), 0.02f, screenManager(), "/ 1.0"))->SetEnabledFunc(enabledFunc);
+			settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltInverseDeadzone, 0.0f, 0.8f, 0.0f, lowEndLabel, 0.02f, screenManager(), "/ 1.0"))->SetEnabledFunc(enabledFunc);
 #endif
 		}
 	}
 	if (g_Config.iTiltInputType == 1 && !g_Config.bTiltNfsShift) {
 		settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltAnalogDeadzoneRadius, 0.0f, 0.8f, 0.0f, co->T("Deadzone radius"), 0.02f, screenManager(), "/ 1.0"))->SetEnabledFunc(enabledFunc);
-		settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltInverseDeadzone, 0.0f, 0.8f, 0.0f, co->T("Low end radius"), 0.02f, screenManager(), "/ 1.0"))->SetEnabledFunc(enabledFunc);
+		settings->Add(new PopupSliderChoiceFloat(&g_Config.fTiltInverseDeadzone, 0.0f, 0.8f, 0.0f, lowEndLabel, 0.02f, screenManager(), "/ 1.0"))->SetEnabledFunc(enabledFunc);
 		settings->Add(new CheckBox(&g_Config.bTiltCircularDeadzone, co->T("Circular deadzone")))->SetEnabledFunc(enabledFunc);
 	}
 	if (!(g_Config.iTiltInputType == 1 && g_Config.bTiltNfsShift)) {

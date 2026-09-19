@@ -8,6 +8,8 @@
 
 #include <QAccelerometer>
 #include <QCoreApplication>
+#include <QDBusConnection>
+#include <QDBusMessage>
 #include <QOrientationSensor>
 #include <QThread>
 
@@ -15,10 +17,12 @@
 
 #include "Common/Log.h"
 #include "Common/System/Display.h"
+#include "Common/TimeUtil.h"
 #include "Common/System/NativeApp.h"
 #include "Common/GPU/thin3d.h"
 #include "Core/Config.h"
 #include "Core/ConfigValues.h"
+#include "Core/System.h"
 
 extern DisplayRotation g_forcedDisplayRotation;
 
@@ -95,6 +99,23 @@ void SetRotation(DisplayRotation want) {
 	// picture squashed into a band.
 	fprintf(stderr, "[sailfish] display rotation -> %d\n", (int)want);
 	if (g_resizeCb) g_resizeCb();
+}
+
+// sensorfw stops the accelerometer as soon as mce blanks the display, and mce
+// blanks it after the idle timeout - which is reached in the middle of a race
+// when the player steers by tilting and never touches the screen. Renew mce's
+// blanking pause (it lasts a minute) while a game is loaded; in the menus the
+// display goes to sleep as usual.
+void KeepDisplayAwake() {
+	if (!PSP_IsInited()) return;
+	static double last = 0.0;
+	double now = time_now_d();
+	if (last != 0.0 && now - last < 20.0) return;
+	last = now;
+	QDBusConnection bus = QDBusConnection::systemBus();
+	if (!bus.isConnected()) return;
+	bus.send(QDBusMessage::createMethodCall("com.nokia.mce", "/com/nokia/mce/request",
+	                                        "com.nokia.mce.request", "req_display_blanking_pause"));
 }
 
 void EnsureApp() {
@@ -201,6 +222,7 @@ void Poll() {
 	static int polls = 0;
 	++polls;
 	QCoreApplication::processEvents();
+	KeepDisplayAwake();
 	static bool logIt = getenv("PPSSPP_SENSOR_LOG") != nullptr;
 	QAccelerometerReading *r = g_accel ? g_accel->reading() : nullptr;
 	if (logIt && (polls == 1 || polls % 200 == 0))

@@ -810,7 +810,10 @@ static const ConfigSetting controlSettings[] = {
 	ConfigSetting("TiltSensitivityX", &g_Config.iTiltSensitivityX, 60, CfgFlag::DEFAULT),
 	ConfigSetting("TiltSensitivityY", &g_Config.iTiltSensitivityY, 60, CfgFlag::DEFAULT),
 	ConfigSetting("TiltAnalogDeadzoneRadius", &g_Config.fTiltAnalogDeadzoneRadius, 0.0f, CfgFlag::DEFAULT),
-	ConfigSetting("TiltInverseDeadzone", &g_Config.fTiltInverseDeadzone, 0.0f, CfgFlag::DEFAULT),
+	// The one tilt setting that stays per game: it compensates the dead zone the
+	// GAME applies to the stick, and that differs from game to game - Gran Turismo
+	// needs about 0.5, NFS Underground none (with a lift the car wobbles there).
+	ConfigSetting("TiltInverseDeadzone", &g_Config.fTiltInverseDeadzone, 0.0f, CfgFlag::PER_GAME),
 	ConfigSetting("TiltCircularDeadzone", &g_Config.bTiltCircularDeadzone, true, CfgFlag::DEFAULT),
 	ConfigSetting("TiltInputType", &g_Config.iTiltInputType, 0, CfgFlag::DEFAULT),
 	ConfigSetting("TiltNfsShift", &g_Config.bTiltNfsShift, false, CfgFlag::DEFAULT),

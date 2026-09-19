@@ -9,20 +9,51 @@ export SDL_VIDEODRIVER=wayland
 export PPSSPP_ASSET_DIR=/usr/share/ppsspp/assets
 export LD_LIBRARY_PATH="/usr/lib64:/vendor/lib64:$LD_LIBRARY_PATH"
 
-# Clock floor for the big cluster (cpu4-7 on the Jolla C2) while we run: with
-# ~30% average load schedutil parks those cores at 650 MHz between bursts and a
-# heavy frame then runs late before the clock catches up - emulation stutter,
-# audible in the sound. util clamp does not move the clock on this kernel even
-# as root, so the floor goes through sysfs. Needs passwordless sudo (developer
-# mode); silently skipped otherwise. Restored when ppsspp exits.
+# The big cores of this device: the ones with the highest capacity. Jolla C2:
+# cpu4-7 of 8, Xperia 10 V: only cpu6-7 - a fixed "4-7" would put the emulation
+# on little cores there. PPSSPP_BIG_CORES overrides the list (taskset syntax).
+big_cores() {
+	best=0
+	list=
+	for c in /sys/devices/system/cpu/cpu[0-9]*; do
+		cap=$(cat "$c/cpu_capacity" 2>/dev/null) || continue
+		case "$cap" in ''|*[!0-9]*) continue ;; esac
+		n=${c##*/cpu}
+		if [ "$cap" -gt "$best" ]; then
+			best=$cap
+			list=$n
+		elif [ "$cap" -eq "$best" ]; then
+			list="$list,$n"
+		fi
+	done
+	echo "$list"
+}
+CORES="${PPSSPP_BIG_CORES:-$(big_cores)}"
+
+# Clock floor for the big cluster while we run: with ~30% average load
+# schedutil parks those cores at 650 MHz between bursts and a heavy frame then
+# runs late before the clock catches up - emulation stutter, audible in the
+# sound. util clamp does not move the clock on this kernel even as root, so the
+# floor goes through sysfs. Needs passwordless sudo (developer mode); silently
+# skipped otherwise. Restored when ppsspp exits.
 # PPSSPP_CPU_FLOOR_KHZ=0 disables it, another value changes it.
-POLICY=/sys/devices/system/cpu/cpufreq/policy4
+POLICY=
+FIRST_BIG=${CORES%%,*}
+if [ -n "$FIRST_BIG" ]; then
+	for p in /sys/devices/system/cpu/cpufreq/policy*; do
+		case " $(cat "$p/related_cpus" 2>/dev/null) " in
+			*" $FIRST_BIG "*) POLICY=$p; break ;;
+		esac
+	done
+fi
 FLOOR_KHZ="${PPSSPP_CPU_FLOOR_KHZ:-1650000}"
 OLD_MIN=$(cat "$POLICY/scaling_min_freq" 2>/dev/null)
 restore_floor() {
 	[ -n "$OLD_MIN" ] && echo "$OLD_MIN" | sudo -n tee "$POLICY/scaling_min_freq" >/dev/null 2>&1
 }
 if [ -n "$OLD_MIN" ] && [ "$FLOOR_KHZ" != 0 ] && sudo -n true 2>/dev/null; then
+	MAX=$(cat "$POLICY/cpuinfo_max_freq" 2>/dev/null)
+	[ -n "$MAX" ] && [ "$FLOOR_KHZ" -gt "$MAX" ] && FLOOR_KHZ=$MAX
 	if echo "$FLOOR_KHZ" | sudo -n tee "$POLICY/scaling_min_freq" >/dev/null 2>&1; then
 		trap restore_floor EXIT INT TERM HUP
 	fi
@@ -31,8 +62,8 @@ fi
 # Emulation on the big cores only: left to the scheduler the Emu thread drifts
 # onto the little cluster and the emulation stutters. No exec, so the trap
 # above still runs when ppsspp-bin exits.
-if command -v taskset >/dev/null 2>&1; then
-	taskset -c 4-7 /usr/bin/ppsspp-bin "$@"
+if [ -n "$CORES" ] && command -v taskset >/dev/null 2>&1; then
+	taskset -c "$CORES" /usr/bin/ppsspp-bin "$@"
 else
 	/usr/bin/ppsspp-bin "$@"
 fi
